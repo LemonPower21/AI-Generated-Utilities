@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Puglia Green Map 🌲</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* Reset e Base */
+        body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #222; overflow: hidden; touch-action: none; }
+        #map { height: 100vh; width: 100vw; background: #aad3df; }
+        
+        /* Pulsante 🌲 Galleggiante */
+        .menu-fab {
+            position: absolute; top: 15px; left: 15px; z-index: 2200;
+            background: #007bff; color: white; border: none;
+            width: 55px; height: 55px; border-radius: 50%;
+            font-size: 24px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .menu-fab:active { transform: scale(0.9); }
+
+        /* Pannello Laterale Corretto e Centrato */
+        .admin-panel {
+            position: absolute; top: 0; left: 0; height: 100vh; z-index: 2300;
+            background: white; 
+            padding: 25px; /* Spazio interno per staccare le barre dai bordi */
+            width: 320px; 
+            max-width: 85vw;
+            box-shadow: 5px 0 25px rgba(0,0,0,0.2);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box; /* Impedisce alle barre di uscire fuori */
+        }
+        
+        .admin-panel.collapsed { transform: translateX(-105%); }
+
+        /* Allineamento elementi interni */
+        .admin-panel > * { width: 100%; margin-left: auto; margin-right: auto; }
+
+        .header-menu { 
+            display: flex; justify-content: space-between; align-items: center; 
+            margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px;
+        }
+        
+        .close-btn { 
+            background: #f1f1f1; border: none; padding: 8px 15px; 
+            border-radius: 8px; font-weight: bold; cursor: pointer; color: #444;
+        }
+
+        /* Form e Input */
+        .search-container { display: flex; gap: 8px; margin-bottom: 5px; }
+        
+        #search-input, #treeNote, #treeImg, .geo-btn, .save-btn { 
+            width: 100%; 
+            padding: 14px; 
+            margin-top: 10px;
+            border: 1px solid #ddd; 
+            border-radius: 10px; 
+            font-size: 16px; /* Evita lo zoom forzato su iPhone */
+            outline: none;
+            box-sizing: border-box; 
+        }
+
+        #search-input { margin-top: 0; border: 2px solid #007bff; }
+        
+        .search-btn { 
+            width: 70px; background: #007bff; color: white; 
+            border: none; border-radius: 10px; font-weight: bold; cursor: pointer;
+        }
+
+        .geo-btn { background: #f8f9fa; color: #333; font-weight: bold; cursor: pointer; }
+        
+        .save-btn { 
+            background: #28a745; color: white; font-weight: bold; 
+            border: none; margin-top: 20px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
+        }
+        .save-btn:active { background: #218838; }
+
+        /* Stato Posizione */
+        #coord-status { 
+            font-size: 13px; margin-top: 15px; text-align: center;
+            padding: 10px; border-radius: 8px; background: #fff5f5; color: #d9534f;
+        }
+
+        /* Popup Mappa */
+        .custom-popup { text-align: center; width: 200px; padding: 5px; }
+        .custom-popup img { max-width: 100%; border-radius: 10px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .delete-btn { 
+            background: #dc3545; color: white; border: none; 
+            padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px;
+        }
+
+        /* Nascondi controlli Leaflet di default per pulizia su Mobile */
+        .leaflet-control-zoom { display: none; }
+    </style>
+</head>
+<body>
+
+    <button class="menu-fab" onclick="openUI()">🌲</button>
+
+    <div class="admin-panel collapsed" id="ui-panel">
+        <div class="header-menu">
+            <b style="font-size: 1.2em;">Puglia Green Map</b>
+            <button class="close-btn" onclick="closeUI()">✕</button>
+        </div>
+        
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Cerca città o via...">
+            <button class="search-btn" id="btn-vai">VAI</button>
+        </div>
+        
+        <button class="geo-btn" onclick="locateMe()">📍 USA MIA POSIZIONE</button>
+        
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        
+        <div id="coord-status">⚠️ Tieni premuto sulla mappa per aggiungere un punto</div>
+        
+        <input type="text" id="treeNote" placeholder="Nome o nota (es. Ulivo)">
+        <input type="text" id="treeImg" placeholder="Link immagine (URL)">
+        
+        <button class="save-btn" onclick="saveCurrentTree()">SALVA IN MAPPA</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        const panel = document.getElementById('ui-panel');
+        const statusText = document.getElementById('coord-status');
+        const searchInput = document.getElementById('search-input');
+
+        // Inizializzazione Mappa
+        const map = L.map('map', {
+            center: [41.11, 16.87], // Bari
+            zoom: 8,
+            tap: false 
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        function openUI() { panel.classList.remove('collapsed'); }
+        function closeUI() { panel.classList.add('collapsed'); }
+
+        // --- SISTEMA DI AGGIUNTA PUNTI ---
+        let trees = JSON.parse(localStorage.getItem('pugliaTrees')) || [];
+        let tempMarker = null;
+        let activeCoords = null;
+
+        function handlePointSelect(e) {
+            activeCoords = e.latlng;
+            if (tempMarker) map.removeLayer(tempMarker);
+            
+            tempMarker = L.marker(activeCoords, { opacity: 0.8 }).addTo(map);
+            statusText.innerText = "✅ Posizione selezionata!";
+            statusText.style.background = "#f0fff4";
+            statusText.style.color = "#28a745";
+            
+            openUI(); 
+        }
+
+        // Tocco lungo (Mobile) e Tasto Destro (PC)
+        map.on('contextmenu', handlePointSelect);
+
+        // Fallback per touch prolungato
+        let pressTimer;
+        map.on('mousedown touchstart', function(e) {
+            pressTimer = window.setTimeout(() => handlePointSelect(e), 800);
+        });
+        map.on('mouseup mouseleave touchend touchmove', () => clearTimeout(pressTimer));
+
+        // --- RICERCA ---
+        async function cercaPosto() {
+            const query = searchInput.value;
+            if (!query) return;
+            const btn = document.getElementById('btn-vai');
+            btn.innerText = "...";
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                if (data.length > 0) {
+                    map.setView([data[0].lat, data[0].lon], 14);
+                    closeUI();
+                } else { alert("Luogo non trovato"); }
+            } catch (e) { alert("Errore di rete"); }
+            btn.innerText = "VAI";
+        }
+        document.getElementById('btn-vai').addEventListener('click', cercaPosto);
+        searchInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') cercaPosto(); });
+
+        // --- GPS ---
+        function locateMe() {
+            map.locate({setView: true, maxZoom: 16});
+            closeUI();
+        }
+        map.on('locationerror', () => alert("GPS non disponibile"));
+
+        // --- SALVATAGGIO E RENDER ---
+        function renderTrees() {
+            // Pulisce marker esistenti
+            map.eachLayer((layer) => { if (layer instanceof L.Marker && layer !== tempMarker) map.removeLayer(layer); });
+            
+            trees.forEach((tree, index) => {
+                const marker = L.marker([tree.lat, tree.lng]).addTo(map);
+                marker.bindPopup(`
+                    <div class="custom-popup">
+                        <strong>${tree.note || 'Punto salvato'}</strong><br>
+                        ${tree.img ? `<img src="${tree.img}" onerror="this.src='https://via.placeholder.com/150?text=Immagine+non+valida'">` : ''}<br>
+                        <button class="delete-btn" onclick="deleteTree(${index})">Elimina</button>
+                    </div>
+                `);
+            });
+            localStorage.setItem('pugliaTrees', JSON.stringify(trees));
+        }
+
+        function saveCurrentTree() {
+            if (!activeCoords) {
+                alert("Prima tieni premuto sulla mappa per scegliere la posizione!");
+                return;
+            }
+            
+            trees.push({ 
+                lat: activeCoords.lat, 
+                lng: activeCoords.lng, 
+                note: document.getElementById('treeNote').value, 
+                img: document.getElementById('treeImg').value 
+            });
+
+            // Reset Form
+            document.getElementById('treeNote').value = '';
+            document.getElementById('treeImg').value = '';
+            statusText.innerText = "⚠️ Tieni premuto sulla mappa per aggiungere un punto";
+            statusText.style.background = "#fff5f5";
+            statusText.style.color = "#d9534f";
+            
+            if(tempMarker) map.removeLayer(tempMarker);
+            tempMarker = null; activeCoords = null;
+            
+            renderTrees();
+            closeUI();
+        }
+
+        function deleteTree(index) {
+            if(confirm("Vuoi eliminare questo punto?")) {
+                trees.splice(index, 1);
+                renderTrees();
+            }
+        }
+
+        // Caricamento iniziale
+        renderTrees();
+    </script>
+</body>
+</html>
