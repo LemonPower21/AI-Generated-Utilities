@@ -1,0 +1,37 @@
+//@version=5
+strategy("Trend Mastery - Benchmark Destroyer", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// --- INPUT ORIGINALI (NON SI TOCCANO) ---
+fastEmaLen = input.int(50, "EMA Veloce")
+slowEmaLen = input.int(200, "EMA Lenta")
+rsiLen     = input.int(14, "Periodo RSI")
+
+// --- OTTIMIZZAZIONE SOGLIE ---
+// Abbassiamo leggermente il filtro RSI per entrare nel trend prima che diventi ovvio
+rsiLevel   = input.int(50, "Filtro RSI (Più reattivo)", minval=1, maxval=100)
+
+// --- CALCOLI ---
+fastEma = ta.ema(close, fastEmaLen)
+slowEma = ta.ema(close, slowEmaLen)
+rsiVal  = ta.rsi(close, rsiLen)
+
+// --- LOGICA POTENZIATA ---
+// 1. Entriamo se il prezzo rompe la EMA 50 dal basso (anticipo) 
+// 2. O se le medie si incrociano (conferma)
+// Sempre a patto che siamo sopra la EMA 200 (Trend Bull)
+longCondition = (ta.crossover(close, fastEma) or ta.crossover(fastEma, slowEma)) and close > slowEma and rsiVal > rsiLevel
+
+// Uscita: Manteniamo la tua originale, è la più solida per evitare falsi segnali
+exitCondition = ta.crossunder(fastEma, slowEma) or close < slowEma
+
+// --- ESECUZIONE ---
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+
+if (exitCondition)
+    strategy.close("Long", comment="Exit")
+
+// --- VISUALIZZAZIONE ---
+plot(fastEma, color=color.blue, title="EMA Veloce")
+plot(slowEma, color=color.orange, linewidth=2, title="EMA Lenta")
+bgcolor(strategy.position_size > 0 ? color.new(color.green, 90) : na)
