@@ -1,0 +1,28 @@
+Progetto/
+├── AllInOne.py
+├── client_secret.json        ← lo scarichi tu da Google Cloud
+├── token.json                ← creato al primo login
+│
+├── title.txt                 ← capcut, multilang
+├── description.txt           ← scale, capcut, multilang
+├── tag.txt                   ← scale, capcut, multilang
+├── timeclock.txt             ← scale
+├── input.mp4                 ← scale, capcut
+├── video.mp4                 ← multilang
+│
+├── Video/                    ← shuffle (ingresso): i clip .mp4
+├── Musica/                   ← shuffle (ingresso): i brani .mp3
+├── VideoPronti/              ← shuffle (uscita) e publish (ingresso)
+│   ├── 01.mp4, 02.mp4 ...
+│   └── titles.txt            ← un titolo per riga, nell'ordine dei file
+│
+├── RFM_Travel_Music/         ← audio (uscita): gli MP3 scaricati
+├── Shorts/                   ← scale (uscita)
+├── Misc/
+│   └── <titolo short>/       ← scale (uscita)
+│       ├── sottotitoli_en.srt, sottotitoli_es.srt ...
+│       └── traccia_audio_en.mp3, traccia_audio_es.mp3 ...
+├── Audio/                    ← multilang (uscita): doppiaggi .mp3
+├── Sottotitoli/              ← multilang (uscita): .srt
+├── output_verticale_capcut.mp4   ← capcut (uscita)
+└── video_multilingua.mp4         ← multilang (uscita)
